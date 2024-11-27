@@ -5,14 +5,22 @@ import time
 # Port number the application is working on (listening & sending)
 APP_PORT = 12345
 
+# Global variable for storing messages waiting to be displayed
+message_queue = []
+
 def start_listener():
     """
-    Start a thread that listens on the given APP_PORT and prints all
-    incoming messages to the console.
+    Starts a thread that listens for incoming UDP messages on the specified
+    APP_PORT and appends them to the global message_queue. The socket is bound
+    to all available network interfaces. Each received message is decoded and
+    stored with the sender's address for later display.
     """
     def listen():
         """
-        Listen for incoming UDP messages on APP_PORT and print them to the console.
+        Listens for incoming UDP messages on the specified APP_PORT and appends
+        them to the global message_queue. The socket is bound to all available 
+        network interfaces. Each received message is decoded and stored with the 
+        sender's address for later display.
         """
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as server_socket:
             server_socket.bind(("", APP_PORT))  # Listening on all interfaces
@@ -20,36 +28,39 @@ def start_listener():
 
             while True:
                 data, address = server_socket.recvfrom(1024)
-                print(f"Received '{data.decode()}' from {address}")
+                global message_queue
+                message_queue.append(f"Received '{data.decode()}' from {address}")  # Add message to queue to be displayed on update
 
     listener_thread = threading.Thread(target=listen, daemon=True)
     listener_thread.start()
 
 def send(message):
     """
-    Send a UDP message to all devices in the local network using the
-    given APP_PORT. The message is broadcasted to all devices in the
-    network, meaning that no specific recipient is needed. The message
-    is first printed to the console, then sent over the network.
+    Send the given message over the network using UDP broadcast to all devices
+    on the same network that are listening on the APP_PORT.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        try:
-            print(f"Message sent: '{message}'")
-            sock.sendto(message.encode(), ("255.255.255.255", APP_PORT))  # Broadcast message on APP_PORT
-        except Exception as e:
-            print(f"Error while sending: {e}")
+        sock.sendto(message.encode(), ("255.255.255.255", APP_PORT))  # Broadcast message on APP_PORT
 
 def start_yeller():
     """
-    Start an infinite loop that waits for user input. The user is
-    asked to input a message, and that message is then sent over the
-    network using the send() function. This function does not return
-    until the program is terminated.
+    Start a thread that constantly asks for user input. The input is sent
+    over the network using the send() function. If the input is empty, only
+    the message queue is updated. The message queue is cleared after each
+    update.
     """
     while True:
         message = input("Send message: ").strip()
-        send(message)
+        print("\033[F\033[K", end="", flush=True)  # Delete old input query by moving cursor up and clearing line
+
+        # Only send messages with content, therefore allowing display updating using empty messages
+        if message != "":
+            send(message)
+
+        # Update dispayed messages
+        [print(msg) for msg in message_queue]
+        message_queue.clear()
 
 if __name__ == "__main__":
     start_listener()
