@@ -6,6 +6,9 @@ import json
 # Port number the application is working on (listening & sending)
 APP_PORT = 12345
 
+# Header used for message verification
+VERYFICATION_HEADER = b'YELLMESSAGE'
+
 # Global variable for storing messages waiting to be displayed
 message_queue = []
 
@@ -51,8 +54,9 @@ def start_listener():
 
             while True:
                 data, address = server_socket.recvfrom(1024)
-                global message_queue
-                message_queue.append(format_message(json.loads(data.decode()), address))  # Add message to queue to be displayed on update
+                if data.startswith(VERYFICATION_HEADER):  # Verify that message is sent by this application
+                    global message_queue
+                    message_queue.append(format_message(json.loads(data[len(VERYFICATION_HEADER):].decode()), address))  # Add message to queue to be displayed on update
 
     listener_thread = threading.Thread(target=listen, daemon=True)
     listener_thread.start()
@@ -64,7 +68,7 @@ def send(message):
     """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.sendto(json.dumps(message).encode('utf-8'), ("255.255.255.255", APP_PORT))  # Broadcast message on APP_PORT
+        sock.sendto(VERYFICATION_HEADER + json.dumps(message).encode('utf-8'), ("255.255.255.255", APP_PORT))  # Broadcast message on APP_PORT
 
 def start_yeller():
     """
